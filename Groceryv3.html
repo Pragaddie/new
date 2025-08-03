@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Grocery Checklist</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      text-align: center;
+      background-color: #f9f9f9;
+    }
+
+    table {
+      width: 100%;
+      max-width: 500px;
+      margin: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+
+    th {
+      background: #f4f4f4;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .toggle {
+      width: 40px;
+      height: 20px;
+      border-radius: 20px;
+      background-color: #ccc; /* Light by default */
+      position: relative;
+      cursor: pointer;
+      display: inline-block;
+      transition: background-color 0.3s ease;
+    }
+
+    .toggle::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 1px;
+      top: 1px;
+      background-color: white;
+      border-radius: 50%;
+      transition: transform 0.3s ease;
+    }
+
+    .toggle.on {
+      background-color: #333; /* Dark when picked */
+    }
+
+    .toggle.on::before {
+      transform: translateX(20px);
+    }
+
+    button {
+      padding: 10px 15px;
+      margin: 10px;
+      font-size: 16px;
+      border: none;
+      background-color: #4CAF50;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      width: 300px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Welcome Back, Praggie & Sangee</h1>
+
+  <div id="userSelect">
+    <p>Select your name:</p>
+    <button onclick="setUser('Praggie')">Praggie</button>
+    <button onclick="setUser('Sangee')">Sangee</button>
+  </div>
+
+  <div id="app" style="display:none;">
+    <input type="text" id="itemInput" placeholder="Type items separated by commas" size="40"/>
+    <button onclick="addItems()">Add</button>
+    <h2>Shopping List</h2>
+    <table>
+      <thead><tr><th></th><th>Item</th><th>Status</th><th>Time</th></tr></thead>
+      <tbody id="list"></tbody>
+    </table>
+    <button onclick="clearAll()">Clear All</button>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDtUjUfjd8kOz4uelvt3-We3W2a0BqNUpA",
+      authDomain: "grocery-57318.firebaseapp.com",
+      databaseURL: "https://grocery-57318-default-rtdb.firebaseio.com",
+      projectId: "grocery-57318",
+      storageBucket: "grocery-57318.firebasestorage.app",
+      messagingSenderId: "577584441442",
+      appId: "1:577584441442:web:b96844f850d2c0c404893b",
+      measurementId: "G-SZW4G9WVHD"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let currentUser = '';
+
+    function setUser(name) {
+      currentUser = name;
+      document.getElementById('userSelect').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      listen();
+    }
+
+    function listen() {
+      db.ref('items').on('value', snap => {
+        const data = snap.val() || {};
+        updateTable(data);
+      });
+    }
+
+    function addItems() {
+      const raw = document.getElementById('itemInput').value;
+      const items = raw.split(',').map(s => s.trim()).filter(s => s);
+      items.forEach(item => {
+        const id = Date.now().toString() + '-' + Math.random().toString(36).substr(2, 5);
+        db.ref('items/' + id).set({
+          text: item,
+          picked: false,
+          who: '',
+          ts: 0
+        });
+      });
+      document.getElementById('itemInput').value = '';
+    }
+
+    function toggleItem(id, item) {
+      const isPicked = !item.picked;
+      db.ref('items/' + id).update({
+        picked: isPicked,
+        who: isPicked ? currentUser : '',
+        ts: isPicked ? Date.now() : 0
+      });
+    }
+
+    function clearAll() {
+      db.ref('items').remove();
+    }
+
+    function updateTable(items) {
+      const tbody = document.getElementById('list');
+      tbody.innerHTML = '';
+      Object.entries(items).forEach(([id, itm]) => {
+        const tr = document.createElement('tr');
+
+        const toggle = document.createElement('div');
+        toggle.className = 'toggle' + (itm.picked ? ' on' : '');
+        toggle.onclick = () => {
+          toggleItem(id, itm);
+        };
+
+        tr.innerHTML = `<td class="center"></td><td>${itm.text}</td>`;
+        tr.children[0].appendChild(toggle);
+
+        const status = itm.picked ? `Picked by ${itm.who}` : '—';
+        const time = itm.ts ? new Date(itm.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+
+        tr.insertCell(2).textContent = status;
+        tr.insertCell(3).textContent = time;
+
+        tbody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>
