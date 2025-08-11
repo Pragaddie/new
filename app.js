@@ -22,17 +22,13 @@ function setMenu(i){ const m=ui.menu.length; ui.menuIndex=((i%m)+m)%m; $('#menuI
 
 function updateHttp(){ const secure = location.protocol==='https:' || location.hostname==='localhost'; const el=$('#lcdHttp'); if(el) el.textContent = secure?'HTTPS':'HTTP'; }
 function setMicState(ok){ const el=$('#lcdMic'); if(el) el.textContent = ok?'OK':'—'; }
-function setVolume(v){ volume=Math.max(0,Math.min(1,v)); const a=$('#remoteAudio'); if(a) a.volume=volume; const d=$('#lcdVolume'); if(d) d.textContent=Math.round(volume*10); }
+function setVolume(v){ volume=Math.max(0,Math.min(1,v)); const a=$('#remoteAudio'); if(a) a.volume=volume; const d=$('#lcdVolume'); if (d) d.textContent=Math.round(volume*10); }
 function setChannelText(v){ $('#lcdChannel').textContent = v||'—'; $('#lcdRoom').textContent = v||'—'; }
 
-function bootType(el, text, delay=45){
+function typeLine(el, text, delay=55){
   return new Promise(res=>{
-    let i=0; el.textContent="";
-    const cur=document.createElement('span'); cur.className='cursor'; cur.textContent='|'; el.appendChild(cur);
-    const timer=setInterval(()=>{
-      if(i<text.length){ cur.insertAdjacentText('beforebegin', text[i++]); }
-      else{ clearInterval(timer); cur.remove(); res(); }
-    }, delay);
+    let i=0; el.textContent=""; const cur=document.createElement('span'); cur.className='cursor'; cur.textContent='|'; el.appendChild(cur);
+    const timer=setInterval(()=>{ if(i<text.length){ cur.insertAdjacentText('beforebegin', text[i++]); } else { clearInterval(timer); cur.remove(); res(); } }, delay);
   });
 }
 
@@ -43,13 +39,11 @@ function powerOn(){
   document.querySelector('.device').classList.remove('off');
   $('#status').textContent='Power on.';
   showScreen('screen-splash');
-  // Animated splash
   (async ()=>{
     updateHttp(); setMicState(false); setVolume(volume);
-    const l1 = $('#type1'), l2 = $('#type2');
-    await bootType(l1, 'Walkie-Talkie', 55);
+    await typeLine($('#type1'), 'Walkie-Talkie', 55);
     await new Promise(r=>setTimeout(r, 220));
-    await bootType(l2, 'By Praggie', 55);
+    await typeLine($('#type2'), 'By Praggie', 55);
     await new Promise(r=>setTimeout(r, 260));
     ui.state='menu'; showScreen('screen-menu'); setMenu(0);
   })();
@@ -68,8 +62,13 @@ function powerOff(){
   $('#lcdCount').textContent='0'; $('#lcdPeer').textContent='—'; setMicState(false);
 }
 
+function updateLCD({link, room}){
+  if (typeof link==='boolean'){ $('#linkDot').classList.toggle('off', !link); }
+  if (room != null){ setChannelText(String(room).replace(/\D/g,'')); }
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
-  // Power first (works offline)
+  // Power wiring (runs even if Firebase fails)
   $('#powerBtn').addEventListener('click', ()=> (ui.state==='off'? powerOn(): powerOff()));
 
   // D-pad
@@ -78,6 +77,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('#padUp').onclick    = ()=> onNav('up');
   $('#padDown').onclick  = ()=> onNav('down');
   $('#padOk').onclick    = ()=> onNav('ok');
+
   // Keyboard arrows
   document.addEventListener('keydown', (e)=>{
     if (!['menu','dash','settings'].includes(ui.state)) return;
@@ -113,7 +113,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('#clear').addEventListener('click', ()=>{ $('#roomId').value=""; setChannelText(""); });
   $('#set').addEventListener('click',  ()=>{ $('#status').textContent = `Channel set to ${$('#roomId').value||"0"}. Use Create/Join to connect.`; });
 
-  // Firebase
+  // Firebase init (safe)
   try{ app=firebase.initializeApp(firebaseConfig); db=firebase.firestore(); }catch(e){ console.warn('Firebase init issue:',e); }
 });
 
@@ -134,7 +134,7 @@ function onNav(dir){
     if (dir==='down') setVolume(volume - STEP_VOL);
     if (dir==='left')  nudgeChannel(-1);
     if (dir==='right') nudgeChannel(+1);
-    if (dir==='ok'){ /* reserved for future (e.g., PTT latch) */ }
+    if (dir==='ok'){ /* reserved for future */ }
     return;
   }
   if (ui.state==='settings'){
@@ -211,7 +211,7 @@ async function start(create){
       if (!roomSnap.exists){ err("Room not found. Ask your friend to Create first."); return; }
 
       const calleeCands = roomRef.collection('calleeCandidates');
-      pc.addEventListener('icecandidate', (e)=>{ if(e.candidate) calleeCands.add(e.candidate.toJSON()); });
+      pc.addEventListener('icecandidate', (e)=>{ if (e.candidate) calleeCands.add(e.candidate.toJSON()); });
 
       const data = roomSnap.data();
       if (!data?.offer){ err("Room has no offer yet. Wait a moment and try again."); return; }
@@ -261,12 +261,6 @@ function startPresence(){
   });
 
   window.addEventListener('beforeunload', ()=>{ try{ roomRef.collection('peers').doc(peerId).delete(); }catch(e){} }, {once:true});
-}
-
-/* LCD helpers */
-function updateLCD({link, room}){
-  if (typeof link==='boolean'){ $('#linkDot').classList.toggle('off', !link); }
-  if (room != null){ setChannelText(String(room).replace(/\D/g,'')); }
 }
 
 /* PTT */
