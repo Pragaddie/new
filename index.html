@@ -1,220 +1,46 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PRAGGIE Walkie</title>
-
-<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
-
-<!-- Firebase SDKs -->
-<script defer src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
-<script defer src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
-
-<!-- Config + App -->
-<script defer src="./firebase-config.js"></script>
-<script defer src="./app.js"></script>
-
-<style>
-:root{
-  --shell:#15110e; --shell-hi:#1e1915;
-  --lcd-bg:#2b220a; --lcd-grid:#3b2f12; --lcd-text:#f1e7b0;
-  --safe:#8fd18a; --bad:#ff9b9b;
-  --btn:#1f1a16; --btn-face:#2a241f; --btn-text:#ebe3d6;
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0; background:#0a0a0a; color:#e8e8ea; display:flex; align-items:center; justify-content:center; padding:16px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-}
-
-/* ===== Device shell (narrow) ===== */
-.device{
-  width:min(360px, 96vw);
-  background:linear-gradient(180deg, var(--shell-hi), var(--shell) 70%);
-  border:1px solid #000; border-radius:26px 26px 30px 30px;
-  box-shadow: 0 18px 55px rgba(0,0,0,.65), inset 0 2px 0 rgba(255,255,255,.05);
-  padding:12px 10px 14px; position:relative;
-}
-.antenna{ position:absolute; top:-46px; left:20px; width:10px; height:46px; border-radius:8px 8px 0 0;
-  background:linear-gradient(180deg,#2a2724,#171513); border:1px solid #000; box-shadow:0 6px 10px rgba(0,0,0,.45); }
-.badge{ position:absolute; top:10px; left:14px; color:#caa56a; font-size:11px; letter-spacing:.12em; opacity:.9; text-shadow:0 1px 0 rgba(0,0,0,.5); }
-
-.power{
-  position:absolute; top:8px; right:12px; width:20px; height:20px; border-radius:50%;
-  border:1px solid #000; background: radial-gradient(circle at 30% 30%, #3a342f, #1a1714);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 2px 8px rgba(0,0,0,.5); cursor:pointer;
-  z-index:5; pointer-events:auto; /* ensure clickable */
-}
-.power::after{ content:""; position:absolute; top:-4px; right:-4px; width:7px; height:7px; border-radius:50%;
-  background:#2a3; box-shadow:0 0 6px rgba(80,255,120,.35); opacity:0; transition:opacity .15s; }
-.power.on{ background: radial-gradient(circle at 30% 30%, #49a36a, #183221); }
-.power.on::after{ opacity:1; background:#4df090; box-shadow:0 0 8px rgba(77,240,144,.9); }
-
-.bezel{
-  margin-top:26px; border:1px solid #000; border-radius:14px;
-  background:linear-gradient(180deg,#15120e,#0c0a08); padding:10px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
-}
-
-/* ===== LCD ===== */
-.lcd{
-  position:relative; height:220px; border: 2px solid #1a160c; border-radius:12px; overflow:hidden;
-  background: radial-gradient(120% 180% at 50% -40%, rgba(247,211,107,.18), transparent 60%), var(--lcd-bg);
-  box-shadow: inset 0 0 0 1px #3b2f12, inset 0 16px 32px rgba(247,211,107,.10);
-  padding:10px;
-}
-.lcd::before{
-  content:""; position:absolute; inset:0;
-  background:
-    linear-gradient(transparent 23px, var(--lcd-grid) 24px) 0 0/100% 24px,
-    linear-gradient(90deg, transparent 23px, var(--lcd-grid) 24px) 0 0/24px 100%;
-  opacity:.22; pointer-events:none;
-}
-.row{ font-family:'VT323', ui-monospace, monospace; color:var(--lcd-text); font-size:26px; line-height:24px; letter-spacing:.04em;
-  text-shadow:0 0 6px rgba(247,211,107,.55), 0 0 1px rgba(247,211,107,.9); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.statusbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.dot{ width:8px; height:8px; border-radius:50%; background:var(--safe); box-shadow:0 0 8px rgba(143,209,138,.7); display:inline-block; margin-left:8px;}
-.dot.off{ background:#6c3939; box-shadow:0 0 8px rgba(255,90,90,.35); }
-
-/* Screens */
-.screen{ display:none; height:100%; }
-.screen.active{ display:block; }
-.splash{ display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
-.type{ font-family:'VT323', monospace; color:var(--lcd-text); font-size:30px; line-height:28px;
-  text-shadow:0 0 6px rgba(247,211,107,.55), 0 0 1px rgba(247,211,107,.9);
-}
-.cursor{ display:inline-block; width:10px; animation:blink .9s steps(1,end) infinite; }
-@keyframes blink{ 50%{ opacity:0; } }
-
-/* Menu */
-.menu{ display:flex; height:100%; align-items:center; justify-content:center; }
-.menu .item{ text-align:center; }
-.menu .icon{ font-size:44px; line-height:1; margin-bottom:4px; }
-.menu .label{ font-size:26px; }
-
-/* Dashboard lines */
-.dash .line{ margin-top:2px; }
-
-/* ===== Controls: compact D-pad + keypad ===== */
-.controls{ margin-top:10px; display:flex; justify-content:center; }
-.keypad{ width:200px; }
-.dpad{
-  width:200px; height:128px; margin:0 auto 8px;
-  display:grid; grid-template-columns:1fr 1fr 1fr; grid-template-rows:1fr 1fr 1fr; gap:6px;
-}
-.btn{
-  background: radial-gradient(140% 100% at 30% 25%, var(--btn-face), var(--btn) 70%);
-  border:1px solid #000; border-radius:11px;
-  color:var(--btn-text); padding:10px 0; text-align:center; cursor:pointer; user-select:none;
-  box-shadow: inset 0 2px 0 rgba(255,255,255,.05), 0 3px 10px rgba(0,0,0,.45);
-  transition: transform .06s ease, filter .15s ease;
-  font-weight:700; letter-spacing:.06em; font-family:inherit; font-size:14px;
-}
-.btn:active{ transform: translateY(1px); filter:brightness(.95); }
-.grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
-.wide{ grid-column: span 3; }
-.padbtn{ border-radius:50%; }
-.pad-up{ grid-column:2; grid-row:1; }
-.pad-left{ grid-column:1; grid-row:2; }
-.pad-ok{ grid-column:2; grid-row:2; }
-.pad-right{ grid-column:3; grid-row:2; }
-.pad-down{ grid-column:2; grid-row:3; }
-
-/* Power-off visuals */
-.device.off{ filter:saturate(.4); }
-.device.off .lcd{ filter:grayscale(70%) brightness(0.45); }
-.device.off .row{ opacity:.35; text-shadow:none; }
-.device.off .btn{ opacity:.55; pointer-events:none; }
-
-/* Hidden helpers */
-.hidden{ display:none !important; }
-</style>
-</head>
-<body>
-
-<div class="device off">
-  <div class="antenna"></div>
-  <div class="badge">PRAGGIE-VSP-100</div>
-  <button id="powerBtn" class="power" aria-label="Power"></button>
-
-  <div class="bezel">
-    <!-- LCD -->
-    <div class="lcd">
-      <!-- Splash (animated) -->
-      <div id="screen-splash" class="screen splash active">
-        <div id="type1" class="type"></div>
-        <div id="type2" class="type"></div>
-      </div>
-
-      <!-- Menu -->
-      <div id="screen-menu" class="screen menu">
-        <div class="item">
-          <div class="icon" id="menuIcon">📻</div>
-          <div class="label row" id="menuLabel">Walkie Talkie</div>
-        </div>
-      </div>
-
-      <!-- Dashboard -->
-      <div id="screen-dash" class="screen dash">
-        <div class="statusbar row">
-          <span><span id="lcdTime">00:00</span> <span id="lcdDate">01-01-00</span></span>
-          <span>NET: <span id="lcdHttp">HTTP</span> • MIC: <span id="lcdMic">—</span> • LINK<span id="linkDot" class="dot off"></span></span>
-        </div>
-        <div class="line row"><span>CHANNEL:</span> <span id="lcdChannel">—</span></div>
-        <div class="line row"><span>VOLUME:</span> <span id="lcdVolume">10</span></div>
-        <div class="line row"><span>ROOM:</span> <span id="lcdRoom">—</span></div>
-        <div class="line row"><span>PEERS:</span> <span id="lcdCount">0</span></div>
-        <div class="line row"><span>TO:</span> <span id="lcdPeer">—</span></div>
-        <div class="line row"><span>YOU:</span> <span id="lcdYou">—</span></div>
-      </div>
-    </div>
-
-    <!-- Controls -->
-    <div class="controls">
-      <div class="keypad">
-        <div class="dpad">
-          <div class="btn padbtn pad-up"    id="padUp">▲</div>
-          <div class="btn padbtn pad-left"  id="padLeft">◀</div>
-          <div class="btn padbtn pad-ok"    id="padOk">OK</div>
-          <div class="btn padbtn pad-right" id="padRight">▶</div>
-          <div class="btn padbtn pad-down"  id="padDown">▼</div>
-        </div>
-        <div class="grid">
-          <div class="btn" data-digit="1">1</div><div class="btn" data-digit="2">2</div><div class="btn" data-digit="3">3</div>
-          <div class="btn" data-digit="4">4</div><div class="btn" data-digit="5">5</div><div class="btn" data-digit="6">6</div>
-          <div class="btn" data-digit="7">7</div><div class="btn" data-digit="8">8</div><div class="btn" data-digit="9">9</div>
-          <div class="btn" id="clear">CLR</div><div class="btn" data-digit="0">0</div><div class="btn" id="set">SET</div>
-          <div id="pttBtn" class="btn wide" disabled>HOLD TO TALK</div>
-        </div>
-      </div>
-    </div>
-
-    <div style="margin-top:8px; color:#b29b7a; font-size:12px;" id="status">Status: Powered off.</div>
-    <div id="errors" style="margin-top:6px; color:var(--bad); font-size:12px;"></div>
-
-    <!-- Hidden but required -->
-    <audio id="remoteAudio" autoplay playsinline></audio>
-    <input id="roomId" class="hidden" />
-    <input id="displayName" class="hidden" />
-    <button id="createBtn" class="hidden">Create</button>
-    <button id="joinBtn" class="hidden">Join</button>
-    <div id="who" class="hidden"></div>
-  </div>
-</div>
-
 <script>
-  // Dashboard clock
-  function pad(n){ return n<10?("0"+n):n }
-  function tickClock(){
-    const d=new Date();
-    const t = pad(d.getHours())+":"+pad(d.getMinutes());
-    const dt= pad(d.getMonth()+1)+"-"+pad(d.getDate())+"-"+String(d.getFullYear()).slice(-2);
-    const T=document.getElementById('lcdTime'); if(T) T.textContent=t;
-    const D=document.getElementById('lcdDate'); if(D) D.textContent=dt;
+/* Failsafe power wiring — works even if app.js or Firebase fail */
+(function () {
+  function wirePower() {
+    var power = document.getElementById('powerBtn');
+    var device = document.querySelector('.device');
+    var status = document.getElementById('status');
+    var splash = document.getElementById('screen-splash');
+    var menu   = document.getElementById('screen-menu');
+    var dash   = document.getElementById('screen-dash');
+    var t1 = document.getElementById('type1');
+    var t2 = document.getElementById('type2');
+
+    if (!power || !device) return;
+    if (power.__wired) return;           // avoid double-binding
+    power.__wired = true;
+
+    power.addEventListener('click', function () {
+      var turningOn = device.classList.contains('off');
+      device.classList.toggle('off', !turningOn);
+      power.classList.toggle('on', turningOn);
+      if (status) status.textContent = turningOn ? 'Power on.' : 'Powered off.';
+
+      // Basic splash → menu (no dependencies)
+      if (turningOn) {
+        if (splash && menu && dash) {
+          splash.classList.add('active');
+          menu.classList.remove('active');
+          dash.classList.remove('active');
+          if (t1) t1.textContent = 'Walkie-Talkie';
+          if (t2) t2.textContent = 'By Praggie';
+          setTimeout(function () {
+            splash.classList.remove('active');
+            menu.classList.add('active');
+          }, 900);
+        }
+      }
+    });
   }
-  setInterval(tickClock, 1000); tickClock();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wirePower);
+  } else {
+    wirePower();
+  }
+})();
 </script>
-</body>
-</html>
